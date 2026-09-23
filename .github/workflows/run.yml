@@ -1,0 +1,34 @@
+name: Auto Run Option WinRate
+
+on:
+  workflow_dispatch: # 允許手動點擊按鈕執行
+  schedule:
+    - cron: '0 8 * * 1' # 每週一自動執行一次
+
+jobs:
+  run-python:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 檢查專案程式碼
+        uses: actions/checkout@v3
+
+      - name: 設定 Python 環境
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: 安裝套件
+        run: |
+          pip install -r requirements.txt
+
+      - name: 執行分析程式
+        run: |
+          python main.py
+
+      - name: 自動把計算結果存回 GitHub
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add reports/intc_win_rate.csv
+          git commit -m "auto: 更新選擇權勝率報告 [skip ci]" || exit 0
+          git push
