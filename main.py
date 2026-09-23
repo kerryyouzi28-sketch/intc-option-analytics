@@ -12,23 +12,31 @@ def run_pipeline():
 
     print(f"開始抓取 {ticker} 最新市場數據...")
     stock = yf.Ticker(ticker)
-    hist = stock.history(period="1y")
 
+    # 取 1 年歷史歷史數據，並剔除無效空值 (NaN)
+    hist = stock.history(period="1y")
     if hist.empty:
-        print("抓取數據失敗！")
+        print("❌ 抓取數據失敗：歷史資料庫為空！")
         return
 
-    # 取得最新收盤價與年化波動度
-    current_price = float(hist["Close"].iloc[-1])
-    daily_returns = np.log(hist["Close"] / hist["Close"].shift(1))
+    # 剔除 Close 為 NaN 的列，確保拿到真正的最新收盤價
+    close_prices = hist["Close"].dropna()
+    if close_prices.empty:
+        print("❌ 抓取數據失敗：無有效的收盤價數據！")
+        return
+
+    current_price = float(close_prices.iloc[-1])
+
+    # 計算歷史年化波動度 (HV)
+    daily_returns = np.log(close_prices / close_prices.shift(1)).dropna()
     annual_volatility = float(daily_returns.std() * np.sqrt(252))
 
     risk_free_rate = 0.045
     T = target_days / 365.0
-    base_strike = round(current_price)
+    base_strike = int(round(current_price))
 
     results = []
-    # 測試現價前後的履約價
+    # 測試現價前後的履約價範圍
     for offset in range(-10, 25, 2):
         strike = float(base_strike + offset)
 
@@ -57,16 +65,19 @@ def run_pipeline():
 
     df = pd.DataFrame(results)
 
-    # 印出結果
+    # 輸出分析結果
+    print("\n" + "=" * 55)
     print(
-        f"\n{ticker} 當前股價: ${current_price:.2f} | 歷史波動度: {annual_volatility*100:.2f}%\n"
+        f"📊 {ticker} 當前股價: ${current_price:.2f} 美元 | 年化歷史波動度: {annual_volatility*100:.2f}%"
     )
+    print("=" * 55 + "\n")
     print(df.to_string(index=False))
 
     # 自動儲存結果為 CSV 報表
     os.makedirs("reports", exist_ok=True)
-    df.to_csv("reports/intc_win_rate.csv", index=False, encoding="utf-8-sig")
-    print("\n分析報告已成功儲存至 reports/intc_win_rate.csv！")
+    report_path = "reports/intc_win_rate.csv"
+    df.to_csv(report_path, index=False, encoding="utf-8-sig")
+    print(f"\n✅ 分析報告已成功儲存至 {report_path}！")
 
 
 if __name__ == "__main__":
